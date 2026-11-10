@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "speak-coach",
+    "name": "Speak Coach",
     "slug": "speak-coach",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,7 +8,9 @@
     "scheme": "speakcoach",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.yourname.speakcoach",
+      "supportsTablet": false
     },
     "android": {
       "adaptiveIcon": {
@@ -17,11 +19,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "output": "server",
-      "favicon": "./assets/images/favicon.png"
+      "predictiveBackGestureEnabled": false,
+      "package": "com.yourname.speakcoach"
     },
     "plugins": [
       "expo-router",
@@ -32,7 +31,15 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Speak Coach records your voice so it can give you speaking feedback."
+        }
+      ],
+      "expo-sharing",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,

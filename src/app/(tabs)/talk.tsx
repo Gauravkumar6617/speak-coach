@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CoachAvatar } from '@/components/avatar';
+import { CallView } from '@/components/call-view';
 import { MicRing } from '@/components/mic-ring';
 import { SelfView } from '@/components/self-view';
 import { ThemedText } from '@/components/themed-text';
@@ -27,6 +28,7 @@ export default function Talk() {
   const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState('');
   const [focused, setFocused] = useState(false);
+  const [full, setFull] = useState(false);
   const stopping = useRef(false);
   const spokenOpener = useRef('');
   const ready = canTranscribe() && !!config.anthropicKey;
@@ -114,9 +116,29 @@ export default function Talk() {
       <View style={[styles.stage, { backgroundColor: theme.backgroundElement }]}>
         <CoachAvatar mood={mood} size={150} />
         <View style={styles.pip}>
-          <SelfView active={focused} recording={state === 'recording'} />
+          {!full && <SelfView active={focused} recording={state === 'recording'} />}
         </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Full screen"
+          onPress={() => setFull(true)}
+          style={[styles.expand, { backgroundColor: theme.backgroundSelected }]}>
+          <Icon name={{ ios: 'arrow.up.left.and.arrow.down.right', android: 'open_in_full', web: 'open_in_full' }} size={16} color={theme.primary} />
+        </Pressable>
       </View>
+
+      <CallView
+        visible={full && focused}
+        onClose={() => setFull(false)}
+        mood={mood}
+        coachLine={[...bubbles].reverse().find((m) => m.role === 'assistant')!.content}
+        myLine={error || [...bubbles].reverse().find((m) => m.role === 'user')?.content}
+        status={status}
+        state={state}
+        ready={ready}
+        onMic={state === 'recording' ? finish : begin}
+        onTimeout={finish}
+      />
 
       <ScrollView
         ref={scroll}
@@ -154,6 +176,7 @@ export default function Talk() {
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.three },
   stage: { marginHorizontal: Spacing.three, marginBottom: Spacing.three, height: 190, borderRadius: Radius.hero, alignItems: 'center', justifyContent: 'center' },
+  expand: { position: 'absolute', left: Spacing.two, top: Spacing.two, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   pip: { position: 'absolute', right: Spacing.two, bottom: Spacing.two },
   chat: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.three, gap: Spacing.two },
   bubble: { maxWidth: '85%', padding: 14, borderRadius: Radius.card },

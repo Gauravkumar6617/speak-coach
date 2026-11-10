@@ -3,7 +3,7 @@ import Svg, { Circle, ClipPath, Defs, Ellipse, G, Path, Rect } from 'react-nativ
 
 import { useTheme } from '@/hooks/use-theme';
 
-type Mood = 'idle' | 'speaking' | 'listening' | 'thinking';
+export type Mood = 'idle' | 'speaking' | 'listening' | 'thinking';
 
 // ponytail: illustrated avatar with random mouth flaps, not real lip-sync. Upgrade path: a
 // streaming video-avatar API (D-ID / HeyGen / Simli) driven by Claude's reply text.

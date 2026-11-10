@@ -39,7 +39,15 @@
         }
       ],
       "expo-sharing",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Speak Coach shows your face while you answer so you can watch your expressions. Video is never recorded or uploaded.",
+          "microphonePermission": "Speak Coach records your voice so it can give you speaking feedback.",
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

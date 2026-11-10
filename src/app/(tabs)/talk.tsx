@@ -4,7 +4,9 @@ import { type ComponentRef, useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CoachAvatar } from '@/components/avatar';
 import { MicRing } from '@/components/mic-ring';
+import { SelfView } from '@/components/self-view';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Icon, Note } from '@/components/ui';
 import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
@@ -24,6 +26,7 @@ export default function Talk() {
   const [state, setState] = useState<'idle' | 'recording' | 'busy'>('idle');
   const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState('');
+  const [focused, setFocused] = useState(false);
   const stopping = useRef(false);
   const spokenOpener = useRef('');
   const ready = canTranscribe() && !!config.anthropicKey;
@@ -37,11 +40,15 @@ export default function Talk() {
   // Speak the opener when the tab is shown (once per opener); stop talking when leaving the tab.
   useFocusEffect(
     useCallback(() => {
+      setFocused(true);
       if (spokenOpener.current !== opener) {
         spokenOpener.current = opener;
         say(opener);
       }
-      return () => void Speech.stop();
+      return () => {
+        setFocused(false);
+        Speech.stop();
+      };
     }, [opener, say]),
   );
 
@@ -83,6 +90,7 @@ export default function Talk() {
     speaking ? 'Coach is speaking. Tap the mic to reply.' :
     'Tap the mic to reply.';
 
+  const mood = state === 'recording' ? 'listening' : state === 'busy' ? 'thinking' : speaking ? 'speaking' : 'idle';
   const bubbles: ChatMessage[] = [{ role: 'assistant', content: opener }, ...turns];
 
   return (
@@ -101,6 +109,13 @@ export default function Talk() {
             setOpener(newOpener());
           }}
         />
+      </View>
+
+      <View style={[styles.stage, { backgroundColor: theme.backgroundElement }]}>
+        <CoachAvatar mood={mood} size={150} />
+        <View style={styles.pip}>
+          <SelfView active={focused} recording={state === 'recording'} />
+        </View>
       </View>
 
       <ScrollView
@@ -130,7 +145,7 @@ export default function Talk() {
 
       <View style={[styles.dock, { borderColor: theme.backgroundSelected }]}>
         <ThemedText type="small" themeColor={ready ? 'textSecondary' : 'bad'} style={{ textAlign: 'center' }}>{status}</ThemedText>
-        <MicRing size={132} state={state} disabled={!ready} onPress={state === 'recording' ? finish : begin} onTimeout={finish} />
+        <MicRing size={112} state={state} disabled={!ready} onPress={state === 'recording' ? finish : begin} onTimeout={finish} />
       </View>
     </SafeAreaView>
   );
@@ -138,6 +153,8 @@ export default function Talk() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.three },
+  stage: { marginHorizontal: Spacing.three, marginBottom: Spacing.three, height: 190, borderRadius: Radius.hero, alignItems: 'center', justifyContent: 'center' },
+  pip: { position: 'absolute', right: Spacing.two, bottom: Spacing.two },
   chat: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.three, gap: Spacing.two },
   bubble: { maxWidth: '85%', padding: 14, borderRadius: Radius.card },
   mine: { alignSelf: 'flex-end', borderBottomRightRadius: 6 },

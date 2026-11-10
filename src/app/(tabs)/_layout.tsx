@@ -7,9 +7,10 @@ export default function TabsLayout() {
   const colors = Colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
   return (
     <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
+      backgroundColor={colors.backgroundElement}
+      indicatorColor={colors.primarySoft}
+      tintColor={colors.primary}
+      labelStyle={{ selected: { color: colors.primary } }}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Practice</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="mic.fill" md="mic" />

@@ -3,13 +3,29 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Card, GREEN, Note, RED, Stat, StatRow } from '@/components/ui';
-import { Spacing } from '@/constants/theme';
+import { Chip, Note, ScoreBar, Section, Stat, StatRow, Surface, tone } from '@/components/ui';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Session } from '@/lib/stats';
 import { loadSessions } from '@/lib/store';
 
-const round = (n: number | null) => (n === null ? null : Math.round(n));
+const clean = (w: string) => w.toLowerCase().replace(/[^a-z']/g, '');
+
+/** Transcript with the weakest-pronounced words highlighted in place. */
+function Transcript({ text, weak }: { text: string; weak: Set<string> }) {
+  const theme = useTheme();
+  return (
+    <ThemedText>
+      {text.split(/(\s+)/).map((part, i) =>
+        weak.has(clean(part)) ? (
+          <ThemedText key={i} style={{ backgroundColor: theme.highlight, fontWeight: 600 }}>{part}</ThemedText>
+        ) : (
+          part
+        ),
+      )}
+    </ThemedText>
+  );
+}
 
 export default function Feedback() {
   const theme = useTheme();
@@ -21,113 +37,123 @@ export default function Feedback() {
   }, [id]);
 
   if (s === undefined) return null;
-  if (s === null) return <ThemedText style={styles.page}>Session not found.</ThemedText>;
+  if (s === null)
+    return (
+      <View style={[styles.page, { flex: 1, backgroundColor: theme.background }]}>
+        <ThemedText>This session was deleted.</ThemedText>
+      </View>
+    );
+
   const f = s.feedback;
   const m = s.metrics;
+  const p = s.pron;
+  const weak = new Set(p.weakWords.map((w) => clean(w.word)));
 
   return (
     <ScrollView style={{ backgroundColor: theme.background }} contentContainerStyle={styles.page}>
-      <ThemedText type="small" themeColor="textSecondary">
-        {s.category} · {new Date(s.createdAt).toLocaleString()}
-      </ThemedText>
-      <ThemedText style={{ fontSize: 20, lineHeight: 28, fontWeight: 600 }}>{s.topic}</ThemedText>
+      <View style={{ gap: Spacing.one }}>
+        <ThemedText type="smallBold" themeColor="primary">{s.category}</ThemedText>
+        <ThemedText type="headline">{s.topic}</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">{new Date(s.createdAt).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</ThemedText>
+      </View>
 
-      {s.feedbackError ? <Note>{s.feedbackError}</Note> : null}
+      {s.feedbackError ? <Note color="warn">{s.feedbackError}</Note> : null}
 
       {f && (
-        <Card title="Scores (0-9)">
-          <StatRow>
-            <Stat label="Band" value={f.overallBand} />
-            <Stat label="Grammar" value={f.grammarScore} />
-            <Stat label="Vocabulary" value={f.vocabularyScore} />
-            <Stat label="Coherence" value={f.coherenceScore} />
-          </StatRow>
+        <Surface style={{ borderRadius: Radius.hero, padding: Spacing.four }}>
+          <View style={styles.hero}>
+            <ThemedText type="display" themeColor={tone(f.overallBand, 9)}>{f.overallBand ?? '–'}</ThemedText>
+            <View style={{ flex: 1 }}>
+              <ThemedText type="headline">Speaking band</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">IELTS-style estimate out of 9</ThemedText>
+            </View>
+          </View>
           {f.summary ? <ThemedText>{f.summary}</ThemedText> : null}
-        </Card>
+          <ScoreBar label="Grammar" value={f.grammarScore} max={9} />
+          <ScoreBar label="Vocabulary" value={f.vocabularyScore} max={9} />
+          <ScoreBar label="Coherence" value={f.coherenceScore} max={9} />
+        </Surface>
       )}
 
-      <Card title="Transcript">
-        <ThemedText>{s.pron.transcript || '(empty)'}</ThemedText>
-      </Card>
+      <Section title="What you said">
+        <Transcript text={p.transcript || '(nothing recognized)'} weak={weak} />
+        {weak.size > 0 && (
+          <ThemedText type="small" themeColor="textSecondary">Highlighted words were hard to understand.</ThemedText>
+        )}
+      </Section>
 
       {f?.corrected ? (
-        <Card title="Corrected version">
+        <Section title="A more natural version">
           <ThemedText>{f.corrected}</ThemedText>
-        </Card>
+        </Section>
       ) : null}
 
       {f && f.issues.length > 0 && (
-        <Card title={`Mistakes (${f.issues.length})`}>
+        <Section title={`Mistakes to fix (${f.issues.length})`}>
           {f.issues.map((i, k) => (
-            <View key={k} style={styles.item}>
-              <ThemedText>
-                <ThemedText style={{ color: RED, textDecorationLine: 'line-through' }}>{i.wrong}</ThemedText>
-                {'  →  '}
-                <ThemedText style={{ color: GREEN, fontWeight: 700 }}>{i.right}</ThemedText>
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {i.type ? `${i.type}: ` : ''}{i.why}
-              </ThemedText>
+            <View key={k} style={[styles.item, k > 0 && { borderTopWidth: 1, borderColor: theme.backgroundSelected }]}>
+              {i.type ? <ThemedText type="smallBold" themeColor="textSecondary">{i.type}</ThemedText> : null}
+              <ThemedText themeColor="bad" style={{ textDecorationLine: 'line-through' }}>{i.wrong}</ThemedText>
+              <ThemedText themeColor="good" style={{ fontWeight: 600 }}>{i.right}</ThemedText>
+              {i.why ? <ThemedText type="small" themeColor="textSecondary">{i.why}</ThemedText> : null}
             </View>
           ))}
-        </Card>
+        </Section>
       )}
 
-      <Card title="Pronunciation (0-100)">
-        <StatRow>
-          <Stat label="Overall" value={round(s.pron.overall)} />
-          <Stat label="Accuracy" value={round(s.pron.accuracy)} />
-          <Stat label="Fluency" value={round(s.pron.fluency)} />
-          <Stat label="Complete" value={round(s.pron.completeness)} />
-        </StatRow>
-        {s.pron.weakWords.length > 0 && (
-          <>
-            <ThemedText type="smallBold">Weakest words</ThemedText>
+      <Section title="Pronunciation">
+        <ScoreBar label="Overall" value={p.overall} max={100} />
+        <ScoreBar label="Accuracy" value={p.accuracy} max={100} />
+        <ScoreBar label="Fluency" value={p.fluency} max={100} />
+        {p.completeness !== null && <ScoreBar label="Completeness" value={p.completeness} max={100} />}
+        {p.weakWords.length > 0 && (
+          <View style={{ gap: Spacing.two }}>
+            <ThemedText type="smallBold">Practise these words</ThemedText>
             <View style={styles.chips}>
-              {s.pron.weakWords.map((w, k) => (
-                <ThemedText key={k} type="small" style={[styles.chip, { backgroundColor: theme.backgroundSelected }]}>
-                  {w.word} {Math.round(w.accuracy)}
-                </ThemedText>
+              {p.weakWords.slice(0, 12).map((w, k) => (
+                <Chip key={k} label={`${w.word} ${Math.round(w.accuracy)}`} color={tone(w.accuracy, 100)} />
               ))}
             </View>
-          </>
+          </View>
         )}
-      </Card>
+      </Section>
 
-      <Card title="Pace and fluency">
+      <Section title="Pace and flow">
         <StatRow>
-          <Stat label="Words/min" value={m.wpm} />
-          <Stat label="Pauses ≥0.6s" value={m.pauseCount} />
-          <Stat label="Longest" value={m.pauseCount ? `${m.longestPause}s` : '–'} />
-          <Stat label="Fillers" value={m.fillerTotal} />
+          <Stat label="words / min" value={m.wpm} />
+          <Stat label={m.pauseCount ? `pauses, longest ${m.longestPause}s` : 'long pauses'} value={m.pauseCount} />
+          <Stat label="fillers" value={m.fillerTotal} />
         </StatRow>
         <ThemedText type="small" themeColor="textSecondary">
-          {m.fillerTotal
-            ? Object.entries(m.fillers).map(([w, n]) => `${w} ×${n}`).join(', ')
-            : 'No fillers detected.'}{' '}
-          Filler counts are approximate: speech recognition often hides “um” and “uh”.
+          {m.fillerTotal ? `${Object.entries(m.fillers).map(([w, n]) => `“${w}” ×${n}`).join(', ')}. ` : ''}
+          Natural conversation is about 120–160 words a minute. Filler counts are approximate, because speech
+          recognition often drops “um” and “uh”.
         </ThemedText>
-      </Card>
+      </Section>
 
       {f && f.vocabularyUpgrades.length > 0 && (
-        <Card title="Vocabulary upgrades">
+        <Section title="Stronger words">
           {f.vocabularyUpgrades.map((u, k) => (
-            <View key={k} style={styles.item}>
+            <View key={k} style={[styles.item, k > 0 && { borderTopWidth: 1, borderColor: theme.backgroundSelected }]}>
               <ThemedText>
-                {u.original} → <ThemedText style={{ fontWeight: 700 }}>{u.better}</ThemedText>
+                <ThemedText themeColor="textSecondary">{u.original} → </ThemedText>
+                <ThemedText themeColor="primary" style={{ fontWeight: 600 }}>{u.better}</ThemedText>
               </ThemedText>
               {u.example ? <ThemedText type="small" themeColor="textSecondary">“{u.example}”</ThemedText> : null}
             </View>
           ))}
-        </Card>
+        </Section>
       )}
 
       {f && f.tips.length > 0 && (
-        <Card title="Tips">
+        <Section title="Try next time">
           {f.tips.map((t, k) => (
-            <ThemedText key={k}>• {t}</ThemedText>
+            <View key={k} style={styles.tip}>
+              <View style={[styles.dot, { backgroundColor: theme.primary }]} />
+              <ThemedText style={{ flex: 1 }}>{t}</ThemedText>
+            </View>
           ))}
-        </Card>
+        </Section>
       )}
     </ScrollView>
   );
@@ -135,7 +161,9 @@ export default function Feedback() {
 
 const styles = StyleSheet.create({
   page: { padding: Spacing.three, gap: Spacing.three, paddingBottom: Spacing.six },
-  item: { gap: Spacing.half, paddingVertical: Spacing.one },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  item: { gap: Spacing.half, paddingTop: Spacing.two },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  chip: { paddingHorizontal: Spacing.two, paddingVertical: Spacing.half, borderRadius: 8, overflow: 'hidden' },
+  tip: { flexDirection: 'row', gap: Spacing.two, alignItems: 'flex-start' },
+  dot: { width: 6, height: 6, borderRadius: 3, marginTop: 9 },
 });

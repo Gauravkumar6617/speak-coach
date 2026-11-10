@@ -6,6 +6,8 @@ A personal English speaking-practice app for iOS and Android, built from one Exp
 - your pace, pauses and filler words, computed on the phone
 - grammar and vocabulary feedback from Claude
 
+The **Talk** tab is a spoken back-and-forth conversation. The coach speaks using the phone's built-in voice, and you tap the mic to answer. Azure turns your answer into text, and Claude replies, which the phone reads aloud. Tap a coach bubble to hear it again.
+
 There is no backend and no account. Sessions are saved to `sessions.json` on the phone.
 
 ## How it works
@@ -92,6 +94,7 @@ You need a Mac with Xcode, and CocoaPods is installed automatically.
 
 ```
 src/app/(tabs)/index.tsx     Practice: topic, mic, countdown ring
+src/app/(tabs)/talk.tsx      Talk: spoken conversation with the coach
 src/app/(tabs)/report.tsx    Report: stats, band chart, mistake bars, swipe-to-delete list
 src/app/(tabs)/settings.tsx  Settings: key status, export, delete all
 src/app/session/[id].tsx     Feedback screen

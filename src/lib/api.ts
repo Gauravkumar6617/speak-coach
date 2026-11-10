@@ -25,7 +25,16 @@ export const missingKeys = () =>
 
 export const canTranscribe = () => !!(config.azureKey && config.azureRegion);
 
-async function assess(wavUri: string): Promise<Pronunciation> {
+/** Transcribes + scores a WAV, then deletes it. */
+export async function assess(wavUri: string): Promise<Pronunciation> {
+  try {
+    return await postToAzure(wavUri);
+  } finally {
+    new File(wavUri).delete();
+  }
+}
+
+async function postToAzure(wavUri: string): Promise<Pronunciation> {
   const url =
     `https://${config.azureRegion}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1` +
     `?language=${encodeURIComponent(config.azureLocale)}&format=detailed`;
@@ -44,7 +53,9 @@ async function assess(wavUri: string): Promise<Pronunciation> {
   return parseAzure(JSON.parse(body));
 }
 
-async function coach(prompt: string): Promise<Feedback> {
+export type ChatMessage = { role: 'user' | 'assistant'; content: string };
+
+async function callClaude(system: string, messages: ChatMessage[], maxTokens = 16000): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -54,45 +65,54 @@ async function coach(prompt: string): Promise<Feedback> {
     },
     body: JSON.stringify({
       model: config.anthropicModel,
-      max_tokens: 16000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: prompt }],
+      max_tokens: maxTokens,
+      system,
+      messages,
     }),
   });
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new Error(`Claude error (HTTP ${res.status}): ${data?.error?.message ?? 'unknown'}`);
-  if (data?.stop_reason === 'refusal') throw new Error('Claude declined to give feedback.');
-  const text = (data?.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
-  return parseFeedback(text);
+  if (data?.stop_reason === 'refusal') throw new Error('Claude declined to answer.');
+  return (data?.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
 }
+
+const coach = async (prompt: string) => parseFeedback(await callClaude(SYSTEM_PROMPT, [{ role: 'user', content: prompt }]));
+
+/** Next spoken reply in a free conversation. `opener` is the coach's first line (not sent as a message). */
+export const chatReply = (opener: string, history: ChatMessage[]) =>
+  callClaude(
+    `You are a friendly English conversation partner helping a learner practise speaking. You opened the conversation by saying: "${opener}". ` +
+      'Your replies are read aloud by text-to-speech, so write plain spoken English: no markdown, lists or emoji. ' +
+      'Keep each reply to 1-3 short sentences and usually end with a question that keeps the learner talking. ' +
+      'If the learner makes a clear grammar mistake, briefly model the correct phrase in passing, without lecturing. ' +
+      'The learner\'s turns come from speech recognition, so ignore punctuation and small recognition errors.',
+    history,
+    4000,
+  );
 
 /** Azure first (Claude needs its transcript), then local metrics and Claude. Only Azure failures throw. */
 export async function analyze(wavUri: string, topic: Topic): Promise<Session> {
-  try {
-    const pron = await assess(wavUri);
-    if (!pron.words.length && !pron.transcript.trim()) throw new Error('No speech was recognized.');
-    const metrics = computeMetrics(pron.words, pron.lexical);
-    let feedback: Feedback | null = null;
-    let feedbackError: string | undefined;
-    if (!config.anthropicKey) feedbackError = 'EXPO_PUBLIC_ANTHROPIC_API_KEY is not set, so there is no grammar feedback.';
-    else
-      try {
-        feedback = await coach(buildPrompt(topic.text, pron, metrics));
-      } catch (e) {
-        feedbackError = `Grammar feedback unavailable: ${(e as Error).message}`;
-      }
-    const { words, lexical, ...pronSummary } = pron;
-    return {
-      id: Date.now().toString(36),
-      createdAt: new Date().toISOString(),
-      topic: topic.text,
-      category: topic.category,
-      pron: pronSummary,
-      metrics,
-      feedback,
-      feedbackError,
-    };
-  } finally {
-    new File(wavUri).delete();
-  }
+  const pron = await assess(wavUri);
+  if (!pron.words.length && !pron.transcript.trim()) throw new Error('No speech was recognized.');
+  const metrics = computeMetrics(pron.words, pron.lexical);
+  let feedback: Feedback | null = null;
+  let feedbackError: string | undefined;
+  if (!config.anthropicKey) feedbackError = 'EXPO_PUBLIC_ANTHROPIC_API_KEY is not set, so there is no grammar feedback.';
+  else
+    try {
+      feedback = await coach(buildPrompt(topic.text, pron, metrics));
+    } catch (e) {
+      feedbackError = `Grammar feedback unavailable: ${(e as Error).message}`;
+    }
+  const { words, lexical, ...pronSummary } = pron;
+  return {
+    id: Date.now().toString(36),
+    createdAt: new Date().toISOString(),
+    topic: topic.text,
+    category: topic.category,
+    pron: pronSummary,
+    metrics,
+    feedback,
+    feedbackError,
+  };
 }

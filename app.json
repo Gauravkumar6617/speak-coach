@@ -20,7 +20,19 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.yourname.speakcoach"
+      "package": "com.yourname.speakcoach",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.CAMERA"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -43,15 +55,34 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Speak Coach shows your face while you answer so you can watch your expressions. Video is never recorded or uploaded.",
+          "cameraPermission": "Speak Coach shows your face while you answer so you can watch your expressions. On the Talk tab, one photo per answer is sent to Claude for feedback on your expression. No video is recorded.",
           "microphonePermission": "Speak Coach records your voice so it can give you speaking feedback.",
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "9a141912-e7c9-4bd6-9260-34dc17370e1b"
+      }
+    },
+    "owner": "gauravkumar94527",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9a141912-e7c9-4bd6-9260-34dc17370e1b"
     }
   }
 }

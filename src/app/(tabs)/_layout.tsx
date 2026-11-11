@@ -19,6 +19,10 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>Talk</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="bubble.left.and.bubble.right.fill" md="forum" />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="approach">
+        <NativeTabs.Trigger.Label>Approach</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="person.2.fill" md="group" />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="report">
         <NativeTabs.Trigger.Label>Report</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="chart.bar.fill" md="bar_chart" />

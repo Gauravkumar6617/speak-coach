@@ -145,6 +145,18 @@ export default function Feedback() {
         </Section>
       )}
 
+      {f?.confidentPhrases?.length ? (
+        <Section title="Sound more confident">
+          {f.confidentPhrases.map((r, k) => (
+            <View key={k} style={[styles.item, k > 0 && { borderTopWidth: 1, borderColor: theme.backgroundSelected }]}>
+              <ThemedText themeColor="textSecondary">You said: “{r.said}”</ThemedText>
+              <ThemedText themeColor="primary" style={{ fontWeight: 600 }}>Say instead: “{r.sayInstead}”</ThemedText>
+              {r.why ? <ThemedText type="small" themeColor="textSecondary">{r.why}</ThemedText> : null}
+            </View>
+          ))}
+        </Section>
+      ) : null}
+
       {f && f.tips.length > 0 && (
         <Section title="Try next time">
           {f.tips.map((t, k) => (

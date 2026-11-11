@@ -1,6 +1,6 @@
 /// <reference types="jest" />
 import { parseAzure, pronunciationHeader } from './azure';
-import { buildPrompt, parseFeedback } from './claude';
+import { buildPrompt, parseFeedback, parseGoalTask, splitReply } from './claude';
 import { computeMetrics, countFillers } from './metrics';
 import { averageBand, bandSeries, dayStreak, mistakeTypes, type Session } from './stats';
 import { TOPICS } from './topics';
@@ -107,15 +107,32 @@ describe('claude', () => {
   });
 
   it('fills missing fields with defaults', () => {
-    expect(parseFeedback('{"issues": "oops", "vocabularyUpgrades": [null, {"better": "x"}]}')).toEqual({
+    expect(parseFeedback('{"issues": "oops", "vocabularyUpgrades": [null, {"better": "x"}], "confidentPhrases": [{"said": "I think maybe", "sayInstead": "I believe"}, {"said": "x"}]}')).toEqual({
       overallBand: null, grammarScore: null, vocabularyScore: null, coherenceScore: null,
       summary: '', corrected: '', issues: [],
-      vocabularyUpgrades: [{ original: '', better: 'x', example: '' }], tips: [],
+      vocabularyUpgrades: [{ original: '', better: 'x', example: '' }],
+      confidentPhrases: [{ said: 'I think maybe', sayInstead: 'I believe', why: '' }], tips: [],
     });
+  });
+
+  it('splits a reply from its on-screen notes in either order', () => {
+    expect(splitReply('Hi there.')).toEqual({ reply: 'Hi there.', face: undefined, tips: undefined });
+    expect(splitReply('Hi.\nTIPS: Good opener.\n- Ask her name\nFACE: Smile more.')).toEqual({ reply: 'Hi.', tips: 'Good opener.\n- Ask her name', face: 'Smile more.' });
+    expect(splitReply('Hi.\nFACE: Relaxed.\nTIPS: Nice.')).toEqual({ reply: 'Hi.', face: 'Relaxed.', tips: 'Nice.' });
   });
 
   it('throws when there is no JSON at all', () => {
     expect(() => parseFeedback('I cannot help with that.')).toThrow();
+  });
+
+  it('parses a goal task and adds the goal to the feedback prompt', () => {
+    const t = parseGoalTask('```json\n{"task": " Introduce yourself to a new colleague. ", "tip": "Smile first."}\n```', 'sound confident');
+    expect(t).toEqual({ category: 'Your goal', text: 'Introduce yourself to a new colleague.', goal: 'sound confident', tip: 'Smile first.' });
+    expect(() => parseGoalTask('{"tip": "x"}', 'g')).toThrow();
+    const m = { wordCount: 1, wpm: 1, pauseCount: 0, longestPause: 0, fillers: {}, fillerTotal: 0 };
+    const pron = { transcript: 'hi', lexical: '', words: [], accuracy: null, fluency: null, completeness: null, overall: null, weakWords: [] };
+    expect(buildPrompt('x', pron, m, 'sound confident')).toContain("Learner's goal: sound confident");
+    expect(buildPrompt('x', pron, m)).not.toContain('goal');
   });
 });
 

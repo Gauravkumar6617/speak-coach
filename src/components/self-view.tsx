@@ -1,13 +1,16 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import type { RefObject } from 'react';
+import { Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Icon } from '@/components/ui';
 import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-/** Live front-camera mirror so the learner can watch their face. Nothing is recorded. */
-export function SelfView({ active, recording, style }: { active: boolean; recording: boolean; style?: ViewStyle }) {
+type Props = { active: boolean; recording: boolean; style?: ViewStyle; cameraRef?: RefObject<CameraView | null> };
+
+/** Live front-camera mirror. No video is recorded; the Talk tab takes one still per answer through `cameraRef`. */
+export function SelfView({ active, recording, style, cameraRef }: Props) {
   const theme = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const border = { borderColor: recording ? theme.record : theme.backgroundSelected };
@@ -25,7 +28,16 @@ export function SelfView({ active, recording, style }: { active: boolean; record
 
   return (
     <View style={[styles.box, border, style]}>
-      <CameraView style={StyleSheet.absoluteFill} facing="front" mute active={active} />
+      <CameraView
+        ref={cameraRef}
+        style={StyleSheet.absoluteFill}
+        facing="front"
+        mute
+        active={active}
+        animateShutter={false}
+        // A small still keeps the upload fast and the image cheap for Claude to read.
+        pictureSize={Platform.OS === 'ios' ? '640x480' : undefined}
+      />
     </View>
   );
 }

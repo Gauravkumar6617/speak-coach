@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { Icon, type IconName } from '@/components/ui';
-import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing, useTabInset } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { config } from '@/lib/api';
 import { deleteAllSessions, sessionsFile } from '@/lib/store';
@@ -51,6 +51,7 @@ const secret = (v: string) => (v ? `Set (…${v.slice(-4)})` : 'Missing');
 
 export default function Settings() {
   const theme = useTheme();
+  const tabInset = useTabInset();
 
   async function exportJson() {
     if (!sessionsFile.exists) return Alert.alert('Nothing to export yet', 'Record a session on the Practice tab first.');
@@ -66,7 +67,7 @@ export default function Settings() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.page}>
+      <ScrollView contentContainerStyle={[styles.page, { paddingBottom: tabInset + Spacing.four }]}>
         <ThemedText type="title">Settings</ThemedText>
 
         <Group title="Speech recognition (Azure)">
@@ -77,7 +78,8 @@ export default function Settings() {
 
         <Group title="Feedback (Claude)">
           <Row first label="Key" value={secret(config.anthropicKey)} ok={!!config.anthropicKey} />
-          <Row label="Model" value={config.anthropicModel} ok />
+          <Row label="Feedback model" value={config.anthropicModel} ok />
+          <Row label="Talk model" value={config.anthropicFastModel} ok />
         </Group>
 
         <ThemedText type="small" themeColor="textSecondary" style={{ paddingHorizontal: Spacing.three }}>
@@ -94,7 +96,7 @@ export default function Settings() {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: Spacing.three, gap: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
+  page: { padding: Spacing.three, gap: Spacing.four },
   group: { borderRadius: Radius.card, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingHorizontal: Spacing.three, paddingVertical: 14 },
 });

@@ -7,7 +7,7 @@ import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
 import { Icon, Section, Stat, StatRow, Surface, tone } from '@/components/ui';
-import { BottomTabInset, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Fonts, Radius, Spacing, useTabInset } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { averageBand, bandSeries, dayStreak, mistakeTypes, type Session } from '@/lib/stats';
 import { deleteSession, loadSessions } from '@/lib/store';
@@ -42,6 +42,7 @@ function BandChart({ values, width }: { values: number[]; width: number }) {
 
 export default function Report() {
   const theme = useTheme();
+  const tabInset = useTabInset();
   const [chartWidth, setChartWidth] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
   const reload = useCallback(() => void loadSessions().then(setSessions), []);
@@ -114,7 +115,7 @@ export default function Report() {
         data={sessions}
         keyExtractor={(s) => s.id}
         ListHeaderComponent={header}
-        contentContainerStyle={styles.page}
+        contentContainerStyle={[styles.page, { paddingBottom: tabInset + Spacing.three }]}
         ItemSeparatorComponent={() => <View style={{ height: Spacing.two }} />}
         renderItem={({ item }) => {
           const band = item.feedback?.overallBand ?? null;
@@ -155,7 +156,7 @@ export default function Report() {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: Spacing.three, paddingBottom: BottomTabInset + Spacing.three },
+  page: { padding: Spacing.three },
   between: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   track: { height: 8, borderRadius: 4, overflow: 'hidden' },
   bar: { height: 8, borderRadius: 4 },

@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Iris violet is the brand; red appears only while recording; green/amber/red only for scores.
 export const Colors = {
@@ -54,3 +55,9 @@ export const Spacing = {
 export const Radius = { card: 18, hero: 24, button: 14, pill: 999 } as const;
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
+
+/** Height the tab bar covers. On iPhones with a home indicator the bar is taller than BottomTabInset by the bottom safe area. */
+export function useTabInset() {
+  const { bottom } = useSafeAreaInsets();
+  return BottomTabInset + (Platform.OS === 'ios' ? bottom : 0);
+}

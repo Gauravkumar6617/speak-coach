@@ -2,7 +2,7 @@ import { fetch } from 'expo/fetch';
 import { File } from 'expo-file-system';
 
 import { parseAzure, pronunciationHeader, type Pronunciation } from './azure';
-import { buildPrompt, parseFeedback, SYSTEM_PROMPT, type Feedback } from './claude';
+import { buildPrompt, FACE_MARK, GOAL_PROMPT, parseFeedback, parseGoalTask, splitReply, SYSTEM_PROMPT, TIPS_MARK, type Feedback } from './claude';
 import { computeMetrics } from './metrics';
 import type { Session } from './stats';
 import type { Topic } from './topics';
@@ -10,7 +10,10 @@ import type { Topic } from './topics';
 // EXPO_PUBLIC_* vars are inlined at build time, so they must be read with literal names.
 export const config = {
   anthropicKey: process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '',
+  // Feedback is the judgement-heavy call, so it gets the stronger model.
   anthropicModel: process.env.EXPO_PUBLIC_ANTHROPIC_MODEL || 'claude-sonnet-5-5',
+  // Talk replies and goal tasks are short and frequent, so they go to the cheap model.
+  anthropicFastModel: process.env.EXPO_PUBLIC_ANTHROPIC_FAST_MODEL || 'claude-haiku-5-5',
   azureKey: process.env.EXPO_PUBLIC_AZURE_SPEECH_KEY ?? '',
   azureRegion: process.env.EXPO_PUBLIC_AZURE_SPEECH_REGION ?? '',
   azureLocale: process.env.EXPO_PUBLIC_AZURE_SPEECH_LOCALE || 'en-US',
@@ -55,7 +58,10 @@ async function postToAzure(wavUri: string): Promise<Pronunciation> {
 
 export type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
-async function callClaude(system: string, messages: ChatMessage[], maxTokens = 16000): Promise<string> {
+type Effort = 'low' | 'medium' | 'high';
+
+// Effort sets how much Claude thinks before answering. Thinking is billed as output, so it is the main cost and speed lever.
+async function callClaude(model: string, system: string, messages: { role: string; content: unknown }[], effort: Effort, maxTokens: number): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -64,8 +70,9 @@ async function callClaude(system: string, messages: ChatMessage[], maxTokens = 1
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: config.anthropicModel,
+      model,
       max_tokens: maxTokens,
+      output_config: { effort },
       system,
       messages,
     }),
@@ -76,19 +83,63 @@ async function callClaude(system: string, messages: ChatMessage[], maxTokens = 1
   return (data?.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
 }
 
-const coach = async (prompt: string) => parseFeedback(await callClaude(SYSTEM_PROMPT, [{ role: 'user', content: prompt }]));
+const coach = async (prompt: string) => parseFeedback(await callClaude(config.anthropicModel, SYSTEM_PROMPT, [{ role: 'user', content: prompt }], 'medium', 8000));
 
-/** Next spoken reply in a free conversation. `opener` is the coach's first line (not sent as a message). */
-export const chatReply = (opener: string, history: ChatMessage[]) =>
-  callClaude(
-    `You are a friendly English conversation partner helping a learner practise speaking. You opened the conversation by saying: "${opener}". ` +
-      'Your replies are read aloud by text-to-speech, so write plain spoken English: no markdown, lists or emoji. ' +
-      'Keep each reply to 1-3 short sentences and usually end with a question that keeps the learner talking. ' +
-      'If the learner makes a clear grammar mistake, briefly model the correct phrase in passing, without lecturing. ' +
-      'The learner\'s turns come from speech recognition, so ignore punctuation and small recognition errors.',
-    history,
-    4000,
+/** A practice task written around what the learner wants to get better at. `previous` avoids repeating the last task. */
+export const goalTopic = async (goal: string, previous?: string): Promise<Topic> =>
+  parseGoalTask(
+    await callClaude(
+      config.anthropicFastModel,
+      GOAL_PROMPT,
+      [{ role: 'user', content: `What I want to practise: ${goal}` + (previous ? `\nGive me a different task from this one: ${previous}` : '') }],
+      'low',
+      2000,
+    ),
+    goal,
   );
+
+/** Only the latest turns are sent, so a long chat does not cost more with every reply. */
+const MAX_TURNS = 12;
+
+const SPOKEN =
+  'Your replies are read aloud by text-to-speech, so write plain spoken English: no markdown, lists or emoji. ' +
+  "The learner's turns come from speech recognition, so ignore punctuation and small recognition errors.";
+
+const chatSystem = (opener: string) =>
+  `You are a friendly English conversation partner helping a learner practise speaking. You opened the conversation by saying: "${opener}". ${SPOKEN} ` +
+  'Keep each reply to 1-3 short sentences and usually end with a question that keeps the learner talking. ' +
+  'If the learner makes a clear grammar mistake, briefly model the correct phrase in passing, without lecturing.';
+
+const approachSystem = (scene: string) =>
+  `You are role-playing a woman the learner does not know, so they can practise starting a conversation with a stranger. The situation, described to the learner: "${scene}" ` +
+  'Stay in character and react as a real person would: warmer when the learner is friendly, genuine and respectful; brief or cooler when a line is pushy, generic or awkward; and if she would realistically want to end the chat, have her do so politely. ' +
+  `${SPOKEN} Keep each in-character reply to 1-2 short sentences. ` +
+  `After the reply, add a new line starting with "${TIPS_MARK}" for the screen (not read aloud): one short sentence on how the learner's last line came across, then two natural lines they could say next to keep the conversation going, each on its own line starting with "- ". ` +
+  'Suggestions must be genuine and respectful: curiosity about her, the shared situation, light humour. No scripted pick-up lines, put-downs or pressure, and when she seems uninterested, suggest a graceful way to end the chat instead.';
+
+const FACE_NOTE = ` The latest turn includes a photo of the learner taken as they finished speaking. After everything else, add a new line starting with "${FACE_MARK}" and one or two short sentences for the screen (not read aloud): say whether their expression looks confident and engaged (eye contact with the camera, smile, tension in the face, head position) and give one thing to adjust. Comment only on expression and posture, never on appearance. If no face is clearly visible, say so in that line.`;
+
+/**
+ * Next spoken reply. `opener` is the first line on screen (not sent as a message): the coach's question in 'chat' mode,
+ * the scene in 'approach' mode, where `tips` holds suggested next lines.
+ * `style` describes whose English to speak (see ACCENTS). `photo` is a base64 JPEG of the learner taken as they finished speaking; with it, `face` is a note on their expression.
+ */
+export async function chatReply(mode: 'chat' | 'approach', opener: string, history: ChatMessage[], photo?: string, style?: string) {
+  const turns: { role: string; content: unknown }[] = history.slice(-MAX_TURNS); // an even count, so the window still starts on a user turn
+  if (photo)
+    turns[turns.length - 1] = {
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: photo } },
+        { type: 'text', text: history[history.length - 1].content },
+      ],
+    };
+  const system =
+    (mode === 'approach' ? approachSystem(opener) : chatSystem(opener)) +
+    (style ? ` Phrase every reply the way this speaker naturally talks, so the learner gets used to it: ${style}. Keep it natural and respectful, never a caricature.` : '') +
+    (photo ? FACE_NOTE : '');
+  return splitReply(await callClaude(config.anthropicFastModel, system, turns, 'low', 2000));
+}
 
 /** Azure first (Claude needs its transcript), then local metrics and Claude. Only Azure failures throw. */
 export async function analyze(wavUri: string, topic: Topic): Promise<Session> {
@@ -100,7 +151,7 @@ export async function analyze(wavUri: string, topic: Topic): Promise<Session> {
   if (!config.anthropicKey) feedbackError = 'EXPO_PUBLIC_ANTHROPIC_API_KEY is not set, so there is no grammar feedback.';
   else
     try {
-      feedback = await coach(buildPrompt(topic.text, pron, metrics));
+      feedback = await coach(buildPrompt(topic.text, pron, metrics, topic.goal));
     } catch (e) {
       feedbackError = `Grammar feedback unavailable: ${(e as Error).message}`;
     }

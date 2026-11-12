@@ -34,7 +34,8 @@ Fill in `.env`. It is git-ignored, so never commit real keys.
 | `EXPO_PUBLIC_AZURE_SPEECH_REGION` | Required, for example `eastus`. |
 | `EXPO_PUBLIC_AZURE_SPEECH_LOCALE` | Optional. Defaults to `en-US`. |
 | `EXPO_PUBLIC_ANTHROPIC_API_KEY` | Optional. Without it you get no grammar or vocabulary feedback. |
-| `EXPO_PUBLIC_ANTHROPIC_MODEL` | Optional. Defaults to `claude-sonnet-5-5`. |
+| `EXPO_PUBLIC_ANTHROPIC_MODEL` | Optional. Used for practice feedback. Defaults to `claude-sonnet-5-5`. |
+| `EXPO_PUBLIC_ANTHROPIC_FAST_MODEL` | Optional. Used for Talk replies and goal tasks. Defaults to `claude-haiku-5-5`. |
 
 The app also starts with no keys. It tells you which keys are missing, and it disables the mic until the Azure key and region are set.
 

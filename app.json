@@ -79,7 +79,7 @@
     },
     "owner": "gauravkumar94527",
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "sdkVersion"
     },
     "updates": {
       "url": "https://u.expo.dev/9a141912-e7c9-4bd6-9260-34dc17370e1b"

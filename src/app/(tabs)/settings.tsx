@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -69,6 +70,10 @@ export default function Settings() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['top']}>
       <ScrollView contentContainerStyle={[styles.page, { paddingBottom: tabInset + Spacing.four }]}>
         <ThemedText type="title">Settings</ThemedText>
+
+        <Group title="Practice">
+          <Action first label="Mock interview with a panel" icon={{ ios: 'person.3.fill', android: 'groups', web: 'groups' }} onPress={() => router.push('/interview')} />
+        </Group>
 
         <Group title="Speech recognition (Azure)">
           <Row first label="Key" value={secret(config.azureKey)} ok={!!config.azureKey} />

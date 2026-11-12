@@ -1,5 +1,5 @@
 import type { CameraView } from 'expo-camera';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { type ComponentRef, useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,24 +12,43 @@ import { ThemedText } from '@/components/themed-text';
 import { Button, Icon, Note } from '@/components/ui';
 import { Radius, Spacing, useTabInset } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { assess, canTranscribe, chatReply, config, type ChatMessage } from '@/lib/api';
-import { useWavRecorder } from '@/lib/recorder';
+import { assess, canTranscribe, chatReply, config, CUT, type ChatMessage } from '@/lib/api';
+import { SILENCE_SECONDS, useWavRecorder } from '@/lib/recorder';
 import { randomScene, randomTopic } from '@/lib/topics';
-import { ACCENTS, loadVoicePref, saveVoicePref, speak, SPEEDS, stopSpeaking, type VoicePref } from '@/lib/voice';
+import { type Accent, ACCENTS, loadVoicePref, saveVoicePref, speak, SPEEDS, stopSpeaking, type VoicePref } from '@/lib/voice';
 
-type Mode = 'chat' | 'approach';
+type Mode = 'chat' | 'approach' | 'interview';
+type Seat = { name: string; role: string; accent: Accent };
 
-const newOpener = (mode: Mode, current?: string) =>
-  mode === 'approach' ? `${randomScene(current?.replace(START, ''))}${START}` : `Let's have a chat. ${randomTopic().text}`;
+const ROLES = ['HR manager', 'hiring manager', 'technical lead'];
+const shuffle = <T,>(xs: T[]) => xs.map((x) => [Math.random(), x] as const).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
+/** Three interviewers, each speaking a different country's English. */
+const newPanel = (): Seat[] => shuffle(ACCENTS).slice(0, ROLES.length).map((accent, i) => ({ name: accent.name, role: ROLES[i], accent }));
+
+const newOpener = (mode: Mode, current: string | undefined, panel: Seat[]) =>
+  mode === 'interview'
+    ? `Thanks for coming in today. I'm ${panel[0].name}, the ${panel[0].role}, and with me are ${panel[1].name}, our ${panel[1].role}, and ${panel[2].name}, our ${panel[2].role}. To start, tell us which role you're interviewing for and a little about yourself.`
+    : mode === 'approach' ? `${randomScene(current?.replace(START, ''))}${START}` : `Let's have a chat. ${randomTopic().text}`;
 const START = ' Start the conversation.';
 
-/** The spoken back-and-forth screen. 'chat' is a free conversation with the coach; 'approach' is a role-play of talking to a stranger. */
+/** Chance that a panelist cuts in on an answer, and when (seconds into it). */
+// ponytail: random timer, not content-aware; the interruption itself is content-aware because Claude sees what was said so far.
+const CUT_CHANCE = 0.5;
+const CUT_AFTER = [12, 25];
+
+/**
+ * The spoken back-and-forth screen. 'chat' is a free conversation with the coach; 'approach' is a role-play of talking to a stranger;
+ * 'interview' is a full-screen panel of three interviewers who sometimes cut in mid-answer.
+ */
 export function Conversation({ mode }: { mode: Mode }) {
   const theme = useTheme();
   const tabInset = useTabInset();
-  const recorder = useWavRecorder();
+  const recorder = useWavRecorder(() => finish());
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
-  const [opener, setOpener] = useState(() => newOpener(mode));
+  const [panel, setPanel] = useState(newPanel);
+  const [speaker, setSpeaker] = useState(0);
+  const [opener, setOpener] = useState(() => newOpener(mode, undefined, panel));
+  const cut = useRef<{ timer?: ReturnType<typeof setTimeout>; hit: boolean }>({ hit: false });
   const [turns, setTurns] = useState<ChatMessage[]>([]); // everything after the opener
   const [state, setState] = useState<'idle' | 'recording' | 'busy'>('idle');
   const [speaking, setSpeaking] = useState(false);
@@ -38,7 +57,7 @@ export function Conversation({ mode }: { mode: Mode }) {
   const [tips, setTips] = useState('');
   const camera = useRef<CameraView>(null);
   const [focused, setFocused] = useState(false);
-  const [full, setFull] = useState(false);
+  const [full, setFull] = useState(mode === 'interview');
   const stopping = useRef(false);
   const spokenOpener = useRef('');
   const ready = canTranscribe() && !!config.anthropicKey;
@@ -56,11 +75,23 @@ export function Conversation({ mode }: { mode: Mode }) {
     saveVoicePref(p);
   };
 
-  const say = useCallback((text: string) => {
-    const p = prefRef.current;
-    setSpeaking(true);
-    speak(text, ACCENTS.find((a) => a.id === p.accent) ?? ACCENTS[0], SPEEDS[p.speed]?.rate ?? 0, () => setSpeaking(false));
-  }, []);
+  // In an interview, a line starting "Name:" is spoken by that panelist in their own voice; anything else by the first.
+  const say = useCallback(
+    (text: string) => {
+      const p = prefRef.current;
+      let voice = ACCENTS.find((a) => a.id === p.accent) ?? ACCENTS[0];
+      let line = text;
+      if (mode === 'interview') {
+        const i = panel.findIndex((s) => text.startsWith(`${s.name}:`));
+        setSpeaker(Math.max(0, i));
+        voice = panel[Math.max(0, i)].accent;
+        if (i >= 0) line = text.slice(panel[i].name.length + 1).trim();
+      }
+      setSpeaking(true);
+      speak(line, voice, SPEEDS[p.speed]?.rate ?? 0, () => setSpeaking(false));
+    },
+    [mode, panel],
+  );
 
   // Load the accent (the other tab may have changed it), then speak the opener once per opener; stop talking when leaving.
   useFocusEffect(
@@ -89,6 +120,13 @@ export function Conversation({ mode }: { mode: Mode }) {
     try {
       await recorder.start();
       setState('recording');
+      if (mode === 'interview' && Math.random() < CUT_CHANCE) {
+        const [lo, hi] = CUT_AFTER;
+        cut.current.timer = setTimeout(() => {
+          cut.current.hit = true;
+          finish();
+        }, (lo + Math.random() * (hi - lo)) * 1000);
+      }
     } catch (e) {
       setError((e as Error).message);
     }
@@ -97,6 +135,9 @@ export function Conversation({ mode }: { mode: Mode }) {
   async function finish() {
     if (stopping.current) return;
     stopping.current = true;
+    clearTimeout(cut.current.timer);
+    const interrupted = cut.current.hit;
+    cut.current.hit = false;
     setState('busy');
     try {
       // One still of the learner's face, if the camera is on. A failed photo must not lose the answer.
@@ -106,9 +147,13 @@ export function Conversation({ mode }: { mode: Mode }) {
         .catch(() => undefined);
       const { transcript } = await assess(await recorder.stop());
       if (!transcript.trim()) throw new Error('Nothing was recognized. Hold the phone closer and try again.');
-      const next: ChatMessage[] = [...turns, { role: 'user', content: transcript }];
+      const next: ChatMessage[] = [...turns, { role: 'user', content: interrupted ? `${transcript} ${CUT}` : transcript }];
       setTurns(next);
-      const { reply, face: note, tips: lines } = await chatReply(mode, opener, next, photo, accent.style);
+      const { reply, face: note, tips: lines } = await chatReply(mode, opener, next, {
+        photo,
+        style: accent.style,
+        panel: panel.map(({ name, role, accent: a }) => ({ name, role, style: a.style })),
+      });
       setFace(note ?? '');
       setTips(lines ?? '');
       setTurns([...next, { role: 'assistant', content: reply }]);
@@ -123,9 +168,9 @@ export function Conversation({ mode }: { mode: Mode }) {
 
   const status =
     !ready ? 'Talk needs the Azure key, Azure region and Claude key in .env.' :
-    state === 'recording' ? 'Listening. Tap when you are done.' :
-    state === 'busy' ? 'Coach is thinking…' :
-    speaking ? 'Coach is speaking. Tap the mic to reply.' :
+    state === 'recording' ? `Listening. Pause for ${SILENCE_SECONDS} seconds or tap when you are done.` :
+    state === 'busy' ? (mode === 'interview' ? 'The panel is thinking…' : 'Coach is thinking…') :
+    speaking ? `${mode === 'interview' ? panel[speaker].name : 'Coach'} is speaking. Tap the mic to reply.` :
     'Tap the mic to reply.';
 
   const mood = state === 'recording' ? 'listening' : state === 'busy' ? 'thinking' : speaking ? 'speaking' : 'idle';
@@ -134,19 +179,22 @@ export function Conversation({ mode }: { mode: Mode }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['top']}>
       <View style={styles.header}>
-        <ThemedText type="title">{mode === 'approach' ? 'Approach' : 'Talk'}</ThemedText>
+        <ThemedText type="title">{{ chat: 'Talk', approach: 'Approach', interview: 'Interview' }[mode]}</ThemedText>
         <Button
           compact
           variant="secondary"
           icon={{ ios: 'plus.bubble', android: 'add_comment', web: 'add_comment' }}
-          title={mode === 'approach' ? 'New scene' : 'New chat'}
+          title={{ chat: 'New chat', approach: 'New scene', interview: 'New panel' }[mode]}
           disabled={state !== 'idle'}
           onPress={() => {
             setTurns([]);
             setError('');
             setFace('');
             setTips('');
-            setOpener(newOpener(mode, opener));
+            const p = newPanel();
+            setPanel(p);
+            setSpeaker(0);
+            setOpener(newOpener(mode, opener, p));
           }}
         />
       </View>
@@ -178,9 +226,11 @@ export function Conversation({ mode }: { mode: Mode }) {
 
       <CallView
         visible={full && focused}
-        onClose={() => setFull(false)}
+        onClose={() => (mode === 'interview' ? router.back() : setFull(false))}
         mood={mood}
-        coachLine={[...bubbles].reverse().find((m) => m.role === 'assistant')!.content}
+        panel={mode === 'interview' ? panel : undefined}
+        speaker={speaker}
+        coachLine={[...bubbles].reverse().find((m) => m.role === 'assistant')!.content.replace(mode === 'interview' ? /^[^:\n]{1,30}:\s*/ : /^$/, '')}
         myLine={error || tips || (face && `Expression: ${face}`) || [...bubbles].reverse().find((m) => m.role === 'user')?.content}
         status={status}
         state={state}

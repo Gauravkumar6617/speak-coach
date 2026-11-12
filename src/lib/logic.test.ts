@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 import { parseAzure, pronunciationHeader, ssml } from './azure';
 import { buildPrompt, parseFeedback, parseGoalTask, splitReply } from './claude';
-import { computeMetrics, countFillers } from './metrics';
+import { computeMetrics, countFillers, rms } from './metrics';
 import { averageBand, bandSeries, dayStreak, mistakeTypes, type Session } from './stats';
 import { TOPICS } from './topics';
 
@@ -171,4 +171,12 @@ describe('stats', () => {
 it('has 40 topics across 5 categories', () => {
   expect(TOPICS).toHaveLength(40);
   expect(new Set(TOPICS.map((t) => t.category)).size).toBe(5);
+});
+
+describe('rms', () => {
+  it('measures 16-bit PCM loudness', () => {
+    expect(rms(new Int16Array([0, 0, 0, 0]).buffer)).toBe(0);
+    expect(rms(new Int16Array([1000, -1000, 1000, -1000]).buffer)).toBe(1000);
+    expect(rms(new ArrayBuffer(0))).toBe(0);
+  });
 });

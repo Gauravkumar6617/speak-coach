@@ -7,23 +7,23 @@ import { config } from './api';
 import { ssml } from './azure';
 
 /** Whose English the coach speaks: an Azure neural voice plus how people there tend to phrase things. */
-export type Accent = { id: string; label: string; voice: string; style: string };
+export type Accent = { id: string; label: string; name: string; voice: string; style: string };
 
 // ponytail: Japan/China/Korea use a native-language voice reading English, which gives the accent but is not a true
 // "English as spoken in X" voice (Azure has none). Swap in a better voice here if one ships.
 export const ACCENTS: Accent[] = [
-  { id: 'us', label: '🇺🇸 US', voice: 'en-US-AvaNeural', style: 'American vocabulary and idioms' },
-  { id: 'uk', label: '🇬🇧 UK', voice: 'en-GB-SoniaNeural', style: "British vocabulary and idioms such as 'reckon', 'brilliant', 'cheers', 'quite'" },
-  { id: 'au', label: '🇦🇺 Australia', voice: 'en-AU-NatashaNeural', style: "Australian expressions such as 'no worries', 'reckon', 'arvo', and a laid-back tone" },
-  { id: 'in', label: '🇮🇳 India', voice: 'en-IN-NeerjaNeural', style: "Indian English phrasing such as 'isn't it?', 'only' for emphasis, 'kindly', 'do one thing', 'I am having'" },
-  { id: 'sg', label: '🇸🇬 Singapore', voice: 'en-SG-LunaNeural', style: "Singapore English: short, quick sentences, particles like 'lah', 'leh', 'lor', 'can', 'already', and questions like 'Can or not?'" },
-  { id: 'ph', label: '🇵🇭 Philippines', voice: 'en-PH-RosaNeural', style: "Philippine English: warm and polite, expressions like 'for a while' (meaning wait), 'already', 'Oh my gosh'" },
-  { id: 'hk', label: '🇭🇰 Hong Kong', voice: 'en-HK-YanNeural', style: "Hong Kong English: concise, with the occasional sentence-final 'la' or 'ah'" },
-  { id: 'ng', label: '🇳🇬 Nigeria', voice: 'en-NG-EzinneNeural', style: "Nigerian English: expressions like 'How far?', 'I'm coming' (meaning wait), 'well done' as a greeting" },
-  { id: 'za', label: '🇿🇦 South Africa', voice: 'en-ZA-LeahNeural', style: "South African English: 'just now', 'now now', 'lekker', 'is it?' as a reply" },
-  { id: 'jp', label: '🇯🇵 Japan', voice: 'ja-JP-NanamiNeural', style: "a Japanese professional speaking English: polite, simple sentence structures, fillers like 'ano...' or 'eto...'" },
-  { id: 'cn', label: '🇨🇳 China', voice: 'zh-CN-XiaoxiaoNeural', style: "a Chinese professional speaking English: direct, simple grammar, few articles" },
-  { id: 'kr', label: '🇰🇷 Korea', voice: 'ko-KR-SunHiNeural', style: 'a Korean professional speaking English: polite, simple structures' },
+  { id: 'us', label: '🇺🇸 US', name: 'Emily', voice: 'en-US-AvaNeural', style: 'American vocabulary and idioms' },
+  { id: 'uk', label: '🇬🇧 UK', name: 'Sophie', voice: 'en-GB-SoniaNeural', style: "British vocabulary and idioms such as 'reckon', 'brilliant', 'cheers', 'quite'" },
+  { id: 'au', label: '🇦🇺 Australia', name: 'Chloe', voice: 'en-AU-NatashaNeural', style: "Australian expressions such as 'no worries', 'reckon', 'arvo', and a laid-back tone" },
+  { id: 'in', label: '🇮🇳 India', name: 'Priya', voice: 'en-IN-NeerjaNeural', style: "Indian English phrasing such as 'isn't it?', 'only' for emphasis, 'kindly', 'do one thing', 'I am having'" },
+  { id: 'sg', label: '🇸🇬 Singapore', name: 'Mei Ling', voice: 'en-SG-LunaNeural', style: "Singapore English: short, quick sentences, particles like 'lah', 'leh', 'lor', 'can', 'already', and questions like 'Can or not?'" },
+  { id: 'ph', label: '🇵🇭 Philippines', name: 'Maria', voice: 'en-PH-RosaNeural', style: "Philippine English: warm and polite, expressions like 'for a while' (meaning wait), 'already', 'Oh my gosh'" },
+  { id: 'hk', label: '🇭🇰 Hong Kong', name: 'Karen', voice: 'en-HK-YanNeural', style: "Hong Kong English: concise, with the occasional sentence-final 'la' or 'ah'" },
+  { id: 'ng', label: '🇳🇬 Nigeria', name: 'Ngozi', voice: 'en-NG-EzinneNeural', style: "Nigerian English: expressions like 'How far?', 'I'm coming' (meaning wait), 'well done' as a greeting" },
+  { id: 'za', label: '🇿🇦 South Africa', name: 'Thandi', voice: 'en-ZA-LeahNeural', style: "South African English: 'just now', 'now now', 'lekker', 'is it?' as a reply" },
+  { id: 'jp', label: '🇯🇵 Japan', name: 'Yuki', voice: 'ja-JP-NanamiNeural', style: "a Japanese professional speaking English: polite, simple sentence structures, fillers like 'ano...' or 'eto...'" },
+  { id: 'cn', label: '🇨🇳 China', name: 'Li Na', voice: 'zh-CN-XiaoxiaoNeural', style: "a Chinese professional speaking English: direct, simple grammar, few articles" },
+  { id: 'kr', label: '🇰🇷 Korea', name: 'Ji-woo', voice: 'ko-KR-SunHiNeural', style: 'a Korean professional speaking English: polite, simple structures' },
 ];
 
 export const SPEEDS = [

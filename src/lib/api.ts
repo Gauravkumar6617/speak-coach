@@ -117,14 +117,34 @@ const approachSystem = (scene: string) =>
   `After the reply, add a new line starting with "${TIPS_MARK}" for the screen (not read aloud): one short sentence on how the learner's last line came across, then two natural lines they could say next to keep the conversation going, each on its own line starting with "- ". ` +
   'Suggestions must be genuine and respectful: curiosity about her, the shared situation, light humour. No scripted pick-up lines, put-downs or pressure, and when she seems uninterested, suggest a graceful way to end the chat instead.';
 
+/** Appended to a learner turn that a panelist cut off mid-answer. */
+export const CUT = '[interrupted]';
+
+export type Panelist = { name: string; role: string; style: string };
+
+const interviewSystem = (opener: string, panel: Panelist[]) =>
+  `You are a realistic job-interview panel helping a learner practise. The panel: ${panel.map((p) => `${p.name}, the ${p.role}, whose English has ${p.style}`).join('; ')}. ` +
+  `${panel[0].name} opened by saying: "${opener}". ${SPOKEN} ` +
+  'Start every reply with the speaking panelist\'s name and a colon, for example "Priya: ...". One panelist speaks per turn; rotate like a real panel, each from their angle ' +
+  '(HR: motivation, culture, behaviour; hiring manager: experience, impact, judgement; technical lead: depth, trade-offs, specifics). Each speaks in their own style of English. ' +
+  'Keep each turn to 1-2 short sentences with one question. Probe vague answers ("Why do you say that?", "What exactly did you do?", "What do you mean by that?") and ask for concrete examples and numbers. ' +
+  'Be professional and neutral, sometimes sceptical, never rude. ' +
+  `If the learner's last turn ends with "${CUT}", a panelist cut them off mid-answer: react to something specific they just said with a short challenge or clarifying question, the way people interrupt in real meetings. ` +
+  `After the spoken turn, add a new line starting with "${TIPS_MARK}" for the screen (not read aloud): one short sentence on how their last answer came across to the panel, and one concrete way to make it stronger.`;
+
 const FACE_NOTE = ` The latest turn includes a photo of the learner taken as they finished speaking. After everything else, add a new line starting with "${FACE_MARK}" and one or two short sentences for the screen (not read aloud): say whether their expression looks confident and engaged (eye contact with the camera, smile, tension in the face, head position) and give one thing to adjust. Comment only on expression and posture, never on appearance. If no face is clearly visible, say so in that line.`;
 
 /**
  * Next spoken reply. `opener` is the first line on screen (not sent as a message): the coach's question in 'chat' mode,
  * the scene in 'approach' mode, where `tips` holds suggested next lines.
- * `style` describes whose English to speak (see ACCENTS). `photo` is a base64 JPEG of the learner taken as they finished speaking; with it, `face` is a note on their expression.
+ * `style` describes whose English to speak (see ACCENTS); in 'interview' mode each of `panel` has their own. `photo` is a base64 JPEG of the learner taken as they finished speaking; with it, `face` is a note on their expression.
  */
-export async function chatReply(mode: 'chat' | 'approach', opener: string, history: ChatMessage[], photo?: string, style?: string) {
+export async function chatReply(
+  mode: 'chat' | 'approach' | 'interview',
+  opener: string,
+  history: ChatMessage[],
+  { photo, style, panel }: { photo?: string; style?: string; panel?: Panelist[] } = {},
+) {
   const turns: { role: string; content: unknown }[] = history.slice(-MAX_TURNS); // an even count, so the window still starts on a user turn
   if (photo)
     turns[turns.length - 1] = {
@@ -135,8 +155,8 @@ export async function chatReply(mode: 'chat' | 'approach', opener: string, histo
       ],
     };
   const system =
-    (mode === 'approach' ? approachSystem(opener) : chatSystem(opener)) +
-    (style ? ` Phrase every reply the way this speaker naturally talks, so the learner gets used to it: ${style}. Keep it natural and respectful, never a caricature.` : '') +
+    (mode === 'interview' && panel ? interviewSystem(opener, panel) : mode === 'approach' ? approachSystem(opener) : chatSystem(opener)) +
+    (style && mode !== 'interview' ? ` Phrase every reply the way this speaker naturally talks, so the learner gets used to it: ${style}. Keep it natural and respectful, never a caricature.` : '') +
     (photo ? FACE_NOTE : '');
   return splitReply(await callClaude(config.anthropicFastModel, system, turns, 'low', 2000));
 }

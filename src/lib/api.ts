@@ -122,9 +122,9 @@ const FACE_NOTE = ` The latest turn includes a photo of the learner taken as the
 /**
  * Next spoken reply. `opener` is the first line on screen (not sent as a message): the coach's question in 'chat' mode,
  * the scene in 'approach' mode, where `tips` holds suggested next lines.
- * `photo` is a base64 JPEG of the learner taken as they finished speaking; with it, `face` is a note on their expression.
+ * `style` describes whose English to speak (see ACCENTS). `photo` is a base64 JPEG of the learner taken as they finished speaking; with it, `face` is a note on their expression.
  */
-export async function chatReply(mode: 'chat' | 'approach', opener: string, history: ChatMessage[], photo?: string) {
+export async function chatReply(mode: 'chat' | 'approach', opener: string, history: ChatMessage[], photo?: string, style?: string) {
   const turns: { role: string; content: unknown }[] = history.slice(-MAX_TURNS); // an even count, so the window still starts on a user turn
   if (photo)
     turns[turns.length - 1] = {
@@ -134,7 +134,10 @@ export async function chatReply(mode: 'chat' | 'approach', opener: string, histo
         { type: 'text', text: history[history.length - 1].content },
       ],
     };
-  const system = (mode === 'approach' ? approachSystem(opener) : chatSystem(opener)) + (photo ? FACE_NOTE : '');
+  const system =
+    (mode === 'approach' ? approachSystem(opener) : chatSystem(opener)) +
+    (style ? ` Phrase every reply the way this speaker naturally talks, so the learner gets used to it: ${style}. Keep it natural and respectful, never a caricature.` : '') +
+    (photo ? FACE_NOTE : '');
   return splitReply(await callClaude(config.anthropicFastModel, system, turns, 'low', 2000));
 }
 

@@ -1,5 +1,5 @@
 /// <reference types="jest" />
-import { parseAzure, pronunciationHeader } from './azure';
+import { parseAzure, pronunciationHeader, ssml } from './azure';
 import { buildPrompt, parseFeedback, parseGoalTask, splitReply } from './claude';
 import { computeMetrics, countFillers } from './metrics';
 import { averageBand, bandSeries, dayStreak, mistakeTypes, type Session } from './stats';
@@ -8,6 +8,13 @@ import { TOPICS } from './topics';
 const sec = (s: number) => s * 10_000_000;
 
 describe('azure', () => {
+  it('builds escaped SSML with the voice locale and a signed rate', () => {
+    expect(ssml('Tom & "Jerry" <3', 'en-SG-LunaNeural', 20)).toBe(
+      '<speak version="1.0" xml:lang="en-SG"><voice name="en-SG-LunaNeural"><prosody rate="+20%">Tom &#38; &#34;Jerry&#34; &#60;3</prosody></voice></speak>',
+    );
+    expect(ssml('hi', 'ja-JP-NanamiNeural', -20)).toContain('xml:lang="ja-JP"><voice name="ja-JP-NanamiNeural"><prosody rate="-20%">');
+  });
+
   it('builds an unscripted HundredMark header', () => {
     expect(JSON.parse(atob(pronunciationHeader()))).toEqual({
       ReferenceText: '',

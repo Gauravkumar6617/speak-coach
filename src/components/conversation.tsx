@@ -1,6 +1,5 @@
 import type { CameraView } from 'expo-camera';
 import { useFocusEffect } from 'expo-router';
-import * as Speech from 'expo-speech';
 import { type ComponentRef, useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +15,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { assess, canTranscribe, chatReply, config, type ChatMessage } from '@/lib/api';
 import { useWavRecorder } from '@/lib/recorder';
 import { randomScene, randomTopic } from '@/lib/topics';
+import { ACCENTS, loadVoicePref, saveVoicePref, speak, SPEEDS, stopSpeaking, type VoicePref } from '@/lib/voice';
 
 type Mode = 'chat' | 'approach';
 
@@ -43,30 +43,49 @@ export function Conversation({ mode }: { mode: Mode }) {
   const spokenOpener = useRef('');
   const ready = canTranscribe() && !!config.anthropicKey;
 
+  // Read through a ref so changing the accent does not re-run the focus effect (which would restart the camera).
+  const [pref, setPref] = useState<VoicePref>({ accent: 'us', speed: 1 });
+  const prefRef = useRef(pref);
+  const accent = ACCENTS.find((a) => a.id === pref.accent) ?? ACCENTS[0];
+  const applyPref = (p: VoicePref) => {
+    prefRef.current = p;
+    setPref(p);
+  };
+  const choose = (p: VoicePref) => {
+    applyPref(p);
+    saveVoicePref(p);
+  };
+
   const say = useCallback((text: string) => {
-    const done = () => setSpeaking(false);
+    const p = prefRef.current;
     setSpeaking(true);
-    Speech.speak(text, { language: config.azureLocale, onDone: done, onStopped: done, onError: done });
+    speak(text, ACCENTS.find((a) => a.id === p.accent) ?? ACCENTS[0], SPEEDS[p.speed]?.rate ?? 0, () => setSpeaking(false));
   }, []);
 
-  // Speak the opener when the tab is shown (once per opener); stop talking when leaving the tab.
+  // Load the accent (the other tab may have changed it), then speak the opener once per opener; stop talking when leaving.
   useFocusEffect(
     useCallback(() => {
+      let live = true;
       setFocused(true);
-      if (spokenOpener.current !== opener) {
-        spokenOpener.current = opener;
-        say(opener);
-      }
+      loadVoicePref().then((p) => {
+        if (!live) return;
+        applyPref(p);
+        if (spokenOpener.current !== opener) {
+          spokenOpener.current = opener;
+          say(opener);
+        }
+      });
       return () => {
+        live = false;
         setFocused(false);
-        Speech.stop();
+        stopSpeaking();
       };
     }, [opener, say]),
   );
 
   async function begin() {
     setError('');
-    Speech.stop(); // let the learner interrupt the coach
+    stopSpeaking(); // let the learner interrupt the coach
     try {
       await recorder.start();
       setState('recording');
@@ -89,7 +108,7 @@ export function Conversation({ mode }: { mode: Mode }) {
       if (!transcript.trim()) throw new Error('Nothing was recognized. Hold the phone closer and try again.');
       const next: ChatMessage[] = [...turns, { role: 'user', content: transcript }];
       setTurns(next);
-      const { reply, face: note, tips: lines } = await chatReply(mode, opener, next, photo);
+      const { reply, face: note, tips: lines } = await chatReply(mode, opener, next, photo, accent.style);
       setFace(note ?? '');
       setTips(lines ?? '');
       setTurns([...next, { role: 'assistant', content: reply }]);
@@ -131,6 +150,17 @@ export function Conversation({ mode }: { mode: Mode }) {
           }}
         />
       </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accents} contentContainerStyle={styles.accentRow}>
+        <Pill
+          label={`Speed: ${SPEEDS[pref.speed]?.label ?? 'Normal'}`}
+          hint="Changes how fast the coach speaks"
+          onPress={() => choose({ ...pref, speed: (pref.speed + 1) % SPEEDS.length })}
+        />
+        {ACCENTS.map((a) => (
+          <Pill key={a.id} label={a.label} selected={a.id === accent.id} hint="Coach speaks English the way people there do" onPress={() => choose({ ...pref, accent: a.id })} />
+        ))}
+      </ScrollView>
 
       <View style={[styles.stage, { backgroundColor: theme.backgroundElement }]}>
         <CoachAvatar mood={mood} size={150} />
@@ -195,7 +225,24 @@ export function Conversation({ mode }: { mode: Mode }) {
   );
 }
 
+function Pill({ label, selected, hint, onPress }: { label: string; selected?: boolean; hint: string; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityHint={hint}
+      onPress={onPress}
+      style={[styles.pill, { backgroundColor: selected ? theme.primary : theme.backgroundSelected }]}>
+      <ThemedText type="smallBold" style={{ color: selected ? theme.background : theme.text }}>{label}</ThemedText>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  accents: { flexGrow: 0, marginBottom: Spacing.three },
+  accentRow: { paddingHorizontal: Spacing.three, gap: Spacing.two },
+  pill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.three },
   stage: { marginHorizontal: Spacing.three, marginBottom: Spacing.three, height: 190, borderRadius: Radius.hero, alignItems: 'center', justifyContent: 'center' },
   expand: { position: 'absolute', left: Spacing.two, top: Spacing.two, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },

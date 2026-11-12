@@ -62,3 +62,10 @@ export function parseAzure(json: any): Pronunciation {
       .map(({ word, accuracy }) => ({ word, accuracy })),
   };
 }
+
+const xml = (s: string) => s.replace(/[<>&"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/** SSML for Azure text-to-speech. `rate` is a percent change, e.g. -20 or 15. */
+export const ssml = (text: string, voice: string, rate: number) =>
+  `<speak version="1.0" xml:lang="${voice.slice(0, 5)}"><voice name="${voice}">` +
+  `<prosody rate="${rate >= 0 ? '+' : ''}${rate}%">${xml(text)}</prosody></voice></speak>`;

@@ -50,3 +50,11 @@ export function computeMetrics(words: Word[], text: string): Metrics {
     fillerTotal: Object.values(fillers).reduce((a, b) => a + b, 0),
   };
 }
+
+/** Root-mean-square loudness of little-endian 16-bit PCM (0 to 32768). */
+export function rms(pcm: ArrayBuffer) {
+  const samples = new Int16Array(pcm, 0, pcm.byteLength >> 1);
+  let sum = 0;
+  for (const x of samples) sum += x * x;
+  return samples.length ? Math.sqrt(sum / samples.length) : 0;
+}

@@ -20,6 +20,7 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShadowVisible: false, headerTintColor: c.primary, headerTitleStyle: { color: c.text } }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="session/[id]" options={{ title: 'Feedback', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="interview" options={{ headerShown: false }} />
         </Stack>
       </ThemeProvider>
     </GestureHandlerRootView>

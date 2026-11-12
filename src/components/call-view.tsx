@@ -22,12 +22,15 @@ type Props = {
   onMic: () => void;
   onTimeout: () => void;
   cameraRef?: RefObject<CameraView | null>;
+  /** Interview mode: several interviewers on top instead of the coach; `speaker` is the one talking. */
+  panel?: { name: string; role: string }[];
+  speaker?: number;
 };
 
 const STAGE = '#141729';
 
 /** Full-screen video-call layout: coach on the top half, the learner's live camera on the bottom half. */
-export function CallView({ visible, onClose, mood, coachLine, myLine, status, state, ready, onMic, onTimeout, cameraRef }: Props) {
+export function CallView({ visible, onClose, mood, coachLine, myLine, status, state, ready, onMic, onTimeout, cameraRef, panel, speaker = 0 }: Props) {
   const { width, height } = useWindowDimensions();
   const avatarSize = Math.min(width * 0.6, height * 0.22); // leaves room for the caption under it
 
@@ -35,8 +38,20 @@ export function CallView({ visible, onClose, mood, coachLine, myLine, status, st
     <Modal visible={visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={onClose} statusBarTranslucent>
       <View style={[styles.root, { backgroundColor: STAGE }]}>
         <SafeAreaView edges={['top']} style={[styles.half, styles.coach]}>
-          <CoachAvatar mood={mood} size={avatarSize} />
-          <Caption label="Coach" text={coachLine} at="bottom" />
+          {panel ? (
+            <View style={styles.panel}>
+              {panel.map((p, i) => (
+                <View key={p.name} style={[styles.seat, i === speaker && styles.seatOn]}>
+                  <CoachAvatar mood={i === speaker ? mood : 'idle'} size={avatarSize * 0.5} />
+                  <ThemedText type="smallBold" style={{ color: '#fff' }}>{p.name}</ThemedText>
+                  <ThemedText type="small" style={{ color: 'rgba(255,255,255,0.7)' }}>{p.role}</ThemedText>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <CoachAvatar mood={mood} size={avatarSize} />
+          )}
+          <Caption label={panel ? panel[speaker].name : 'Coach'} text={coachLine} at="bottom" />
           <Pressable accessibilityRole="button" accessibilityLabel="Exit full screen" onPress={onClose} style={styles.close}>
             <Icon name={{ ios: 'xmark', android: 'close', web: 'close' }} size={18} color="#fff" />
           </Pressable>
@@ -67,7 +82,10 @@ function Caption({ label, text, at }: { label: string; text: string; at: 'top' |
 const styles = StyleSheet.create({
   root: { flex: 1, gap: 2 },
   half: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  coach: { paddingBottom: 120 }, // caption height, so the avatar centres above it
+  coach: { paddingBottom: 120 },
+  panel: { flexDirection: 'row', gap: Spacing.two, paddingHorizontal: Spacing.two },
+  seat: { flex: 1, alignItems: 'center', gap: 2, padding: Spacing.two, borderRadius: Radius.card, borderWidth: 2, borderColor: 'transparent' },
+  seatOn: { borderColor: 'rgba(255,255,255,0.6)', backgroundColor: 'rgba(255,255,255,0.08)' }, // caption height, so the avatar centres above it
   camera: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: undefined, height: undefined, borderRadius: 0, borderWidth: 0 },
   close: {
     position: 'absolute',
